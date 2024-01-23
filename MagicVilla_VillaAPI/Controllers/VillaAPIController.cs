@@ -2,23 +2,48 @@
 using MagicVilla_VillaAPI.Models.DTO;
 using MagicVilla_VillaAPI.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
+using MagicVilla_VillaAPI.Logging;
+using Microsoft.EntityFrameworkCore;
+using MagicVilla_VillaAPI.Models;
 
 namespace MagicVilla_VillaAPI.Controllers
 {
     [ApiController]
     //[Route("api/[controller]")]
     [Route("api/VillaAPI")]
+
+
     public class VillaAPIController:ControllerBase
 
     {
-        [HttpGet]
-        public ActionResult <IEnumerable<VillaDTO>> GetVillas()
- // you have to mention return type for status code so using action result we will help us to acheive that... 
+        //our created logger
+        //private readonly ILogging _logger;
+        //ILogger is default logger
+        //private readonly ILogger<VillaAPIController> _logger;
+
+        //public VillaAPIController(ILogging logger)
+        //{
+        //  _logger = logger;
+        //}
+
+        private readonly ApplicationDbContext _db;
+
+        public VillaAPIController(ApplicationDbContext db)
         {
-            return Ok(VillaStore.VillaList);
+            _db = db;
+        }
+    
+
+            [HttpGet]
+        public ActionResult <IEnumerable<VillaDTO>> GetVillas()
+ // you have to mention return type for status code so using ActionResult we will help us to acheive that... 
+        {
+          //  _logger.Log("Getting all villas","");
+            return Ok(_db.Villas.ToList());
         }
 
         [HttpGet("{id:int}",Name = "GetVilla")]
+
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -26,9 +51,10 @@ namespace MagicVilla_VillaAPI.Controllers
         {
             if (id == 0)
             {
+             //   _logger.Log("get villa error with id" + id,"error");
                 return BadRequest();
             }
-            var villa = VillaStore.VillaList.FirstOrDefault(u => u.Id == id);
+            var villa = _db.Villas.FirstOrDefault(u => u.Id == id);
             if(villa == null){
                 return NotFound();
             }
@@ -43,6 +69,11 @@ namespace MagicVilla_VillaAPI.Controllers
 
         public ActionResult <VillaDTO> CreateVilla ([FromBody]VillaDTO villaDTO)
         {
+            if (_db.Villas.FirstOrDefault(u => u.Name.ToLower() == villaDTO.Name.ToLower()) != null)
+            {
+                ModelState.AddModelError("CustomerError", "Villa already exist");
+                return BadRequest(ModelState);
+            }
             if (villaDTO == null)
             {
                 return BadRequest(villaDTO);
@@ -51,11 +82,20 @@ namespace MagicVilla_VillaAPI.Controllers
             {
                 return StatusCode(StatusCodes.Status500InternalServerError);
             }
-            villaDTO.Id = VillaStore.VillaList.OrderByDescending(u=>u.Id).FirstOrDefault().Id+1;
-            VillaStore.VillaList.Add(villaDTO);
+            Villa model = new()
+            {
+                Id = villaDTO.Id,
+                Name = villaDTO.Name,
+                Location = villaDTO.Location,
+                Rate = villaDTO.Rate,
+                SqFt = villaDTO.SqFt,
+            };
+            _db.Villas.Add(model);
+            _db.SaveChanges();
 
             return CreatedAtRoute("GetVilla", new {id=villaDTO.Id },villaDTO);
         }
+
 
         [HttpDelete ("{id:int}",Name ="DeleteVilla")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -68,12 +108,13 @@ namespace MagicVilla_VillaAPI.Controllers
             {
                 return BadRequest();
             }
-            var villa = VillaStore.VillaList.FirstOrDefault(u=> u.Id == id);
+            var villa = _db.Villas.FirstOrDefault(u=> u.Id == id);
             if (villa == null)
             {
                 return NotFound();
             }
-            VillaStore.VillaList.Remove(villa);
+            _db.Villas.Remove(villa);
+            _db.SaveChanges();
             return NoContent();
         }
 
@@ -86,9 +127,19 @@ namespace MagicVilla_VillaAPI.Controllers
             {
                 return BadRequest();
             }
-            var villa = VillaStore.VillaList.FirstOrDefault(u=>u.Id == id);
-            villa.Name = villaDTO.Name;
-            villa.Location= villaDTO.Location;
+            //var villa = _db.Villas.FirstOrDefault(u=>u.Id == id);
+            //villa.Name = villaDTO.Name;
+            //villa.Location= villaDTO.Location;
+            Villa model = new()
+            {
+                Id = villaDTO.Id,
+                Name = villaDTO.Name,
+                Location = villaDTO.Location,
+                Rate = villaDTO.Rate,
+                SqFt = villaDTO.SqFt,
+            };
+            _db.Villas.Update(model);
+            _db.SaveChanges();
             return NoContent();
         }
     }
